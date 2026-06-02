@@ -1,0 +1,95 @@
+# ================================
+# C++ 编译产物
+# ================================
+*.o
+*.obj
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.lo
+*.la
+*.make
+*.cmake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+build/
+bin/
+obj/
+.vs/
+*.vcxproj*
+*.sln
+
+# ================================
+# Python
+# ================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+*.egg
+.venv/
+venv/
+env/
+*.whl
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ================================
+# IDE 和编辑器
+# ================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ================================
+# 仿真相关
+# ================================
+# AirSim 日志和临时文件
+*.log
+airsim/logs/
+temp/
+Saved/
+
+# Webots 项目文件
+*.wbproj.user
+
+# ================================
+# 数据和结果（大文件不上传）
+# ================================
+data/results/*.pcap
+data/results/*.bag
+*.mp4
+*.avi
+*.mov
+
+# ================================
+# Node.js (Web前端)
+# ================================
+node_modules/
+.next/
+dist/
+.env.local
+.env.production
+
+# ================================
+# 其他
+# ================================
+*.zip
+*.rar
+*.7z
+~$*.pptx
+~$*.docx
+~$*.xlsx
