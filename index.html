@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<<<<<<< HEAD
 <html lang="en">
 
 <head>
@@ -235,3 +236,47 @@
 </body>
 
 </html>
+=======
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>无人机自主避障仿真系统</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      #app { position: relative; width: 100%; height: 100%; }
+      canvas { display: block; }
+
+      #hud {
+        position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.65); color: #fff;
+        padding: 8px 24px; border-radius: 8px;
+        font-size: 14px; pointer-events: none; z-index: 10;
+      }
+      #controls {
+        position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 12px; z-index: 10;
+      }
+      #controls button {
+        padding: 10px 24px; border: none; border-radius: 8px;
+        font-size: 14px; cursor: pointer; font-weight: 500;
+        transition: opacity 0.2s;
+      }
+      #controls button:hover { opacity: 0.85; }
+      #btn-start { background: #22c55e; color: #fff; }
+      #btn-reset { background: #64748b; color: #fff; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="hud">准备就绪 — 点击「开始仿真」启动</div>
+      <div id="controls">
+        <button id="btn-start">开始仿真</button>
+        <button id="btn-reset">重置</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+>>>>>>> baabb5dd94bc66b8f95b870a3e4084a2a64671c7
