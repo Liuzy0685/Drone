@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="media/favicon.ico">
+    <title>PropWash</title>
+
+    <!-- IMPORTANT: the importmap does not work with the worker, if you change the three version here, you also need to change it in src/three.js -->
+
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@v0.183.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.183.0/examples/jsm/"
+      }
+    }
+    </script>
+</head>
+
+<body style="margin:0; overflow:hidden; background-color: #123456;">
+
+    <div id="battery" style="
+        height:33.333vh;
+        width:calc(33.333vh * 0.3);
+        position:absolute;
+        top:50%;
+        left:50%;
+        transform:translate(-50%,-50%);
+        border:4px solid white;
+        border-radius:20px;
+        box-sizing:border-box;
+        padding:10px;
+        display:flex;
+        flex-direction:column;
+        justify-content:flex-end;
+        pointer-events: none;
+    ">
+        <div id="progress" style="
+            height:0%;
+            width:100%;
+            background:lime;
+            border-radius:4px;
+            position:relative;
+            overflow:hidden;
+        "></div>
+        <span id="clickLabel" style="
+            position:absolute;
+            top:50%;
+            left:50%;
+            transform:translate(-50%,-50%) rotate(-90deg);
+            white-space:nowrap;
+            font-size:5vh;
+            font-family:monospace;
+            font-weight:bold;
+            color:#123456;
+        ">Click!</span>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+
+    <!-- Key reference panel (collapsible) -->
+    <div id="keyPanel" style="
+        position:absolute;
+        top:20px;
+        left:0px;
+        z-index:200;
+        background:rgba(0,0,0,0.82);
+        border:2px solid rgba(255,255,255,0.25);
+        border-left:none;
+        border-radius:0 10px 10px 0;
+        color:#ccc;
+        font-family:monospace;
+        font-size:12px;
+        line-height:1.6;
+        padding:12px 16px 12px 24px;
+        max-width:280px;
+        transition:transform 0.25s ease;
+    ">
+        <!-- Toggle tab -->
+        <div id="keyPanelTab" style="
+            position:absolute;
+            top:50%;
+            right:-32px;
+            transform:translateY(-50%);
+            width:28px;
+            height:110px;
+            background:rgba(0,0,0,0.82);
+            border:2px solid rgba(255,255,255,0.25);
+            border-left:none;
+            border-radius:0 6px 6px 0;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            cursor:pointer;
+            color:#aaa;
+            font-size:18px;
+            line-height:1;
+            writing-mode:vertical-rl;
+            text-orientation:upright;
+            letter-spacing:4px;
+        ">操作按键</div>
+
+        <div style="color:#0f0;font-size:14px;margin-bottom:6px;">⌨ 键盘鼠标操作</div>
+
+        <div style="color:#f80;margin-top:6px;">Mode 5 (键盘操控)</div>
+        <div>  <b>W</b> 前进 · <b>S</b> 后退 (水平平移)</div>
+        <div>  <b>E</b> 机头下压 · <b>Q</b> 机头抬起 (俯仰)</div>
+        <div>  <b>A</b> 偏航左转 · <b>D</b> 偏航右转</div>
+        <div>  <b>Z</b> 横滚左倾 · <b>X</b> 横滚右倾</div>
+        <div>  <b>R</b> 上升 · <b>F</b> 下降 · 松手悬停</div>
+
+        <div style="color:#f80;margin-top:8px;">自由视角 (空格切换到第3个)</div>
+        <div>  <b>WASD</b> 平移 · <b>RF</b> 升降</div>
+        <div>  <b>鼠标</b> 旋转视角 (点击隐藏光标后生效)</div>
+        <div>  <b>方向键</b> 旋转视角</div>
+        <div>  <b>Shift</b> 加速移动</div>
+
+        <div style="color:#f80;margin-top:8px;">通用按键</div>
+        <div>  <b>T</b> 起飞 · <b>G</b> 降落 · <b>Tab</b> 重置</div>
+        <div>  <b>N</b> 切换导航</div>
+        <div>  <b>空格</b> 切换视角 (FPV→第三→自由)</div>
+        <div>  <b>1~5</b> 切换控制模式</div>
+
+        <!-- real-time drone XYZ -->
+        <div id="droneCoords" style="
+            color:#0cf;
+            margin-top:10px;
+            padding-top:8px;
+            border-top:1px solid rgba(255,255,255,0.15);
+            font-size:11px;
+            line-height:1.5;
+        ">X: --  Y: --  Z: --</div>
+    </div>
+
+    <!-- Key panel toggle logic (inline, runs before modules) -->
+    <script>
+    (function(){
+        var panel = document.getElementById('keyPanel');
+        var tab   = document.getElementById('keyPanelTab');
+        var hidden = false;
+        tab.addEventListener('click', function(e){
+            e.stopPropagation();
+            hidden = !hidden;
+            panel.style.transform = hidden ? 'translateX(-'+(panel.offsetWidth-2)+'px)' : 'translateX(0)';
+        });
+    })();
+    </script>
+
+    <!-- Flight control buttons -->
+    <div id="flightControls" style="
+        position:absolute;
+        top:20px;
+        right:310px;
+        display:flex;
+        gap:10px;
+        z-index:100;
+    ">
+        <button id="takeoffBtn" style="
+            padding:10px 20px;
+            font-size:14px;
+            font-family:monospace;
+            font-weight:bold;
+            border-radius:8px;
+            border:2px solid #00ff00;
+            background:rgba(0,255,0,0.15);
+            color:#00ff00;
+            cursor:pointer;
+        ">&#9650; 起飞 (T)</button>
+        <button id="landBtn" style="
+            padding:10px 20px;
+            font-size:14px;
+            font-family:monospace;
+            font-weight:bold;
+            border-radius:8px;
+            border:2px solid #ff4444;
+            background:rgba(255,0,0,0.15);
+            color:#ff4444;
+            cursor:pointer;
+        ">&#9660; 降落 (G)</button>
+    </div>
+
+    <!-- Flight status indicator -->
+    <div id="flightStatus" style="
+        position:absolute;
+        top:20px;
+        left:50%;
+        transform:translateX(-50%);
+        color:#ffffff;
+        font-family:monospace;
+        font-size:16px;
+        font-weight:bold;
+        pointer-events:none;
+        text-shadow:0 0 8px rgba(0,0,0,0.8);
+        z-index:99;
+    "></div>
+
+    <!-- Mode indicator -->
+    <div id="modeIndicator" style="
+        position:absolute;
+        bottom:20px;
+        right:20px;
+        color:rgba(255,255,255,0.5);
+        font-family:monospace;
+        font-size:12px;
+        pointer-events:none;
+        z-index:99;
+    ">Mode 2</div>
+
+    <div id="timer" style="
+        height:5vh;
+        position:absolute;
+        top:90%;
+        left:50%;
+        transform:translate(-50%,-50%);
+        border:4px solid white;
+        background-color: black;
+        color: lightgray;
+        border-radius:20px;
+        box-sizing:border-box;
+        padding:10px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        text-align:center;
+        pointer-events: none;
+        font-size:4vh;
+        font-family:monospace;
+        visibility: hidden;
+    ">
+        00:00'00
+    </div>
+
+</body>
+
+</html>

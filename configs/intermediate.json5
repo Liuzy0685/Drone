@@ -1,0 +1,39 @@
+{
+    // extends: [ "configs/default.json5", ], // include all values from that config (and its extends)
+
+    aircraft: {
+
+        maxCombinedThrust: 20.0, // N
+
+        dragForceOverSpeed: [ 0.0, 0.0, 0.0, ], // N/(m/s)
+        dragForceOverSpeedSquared: [ 0.01, 0.01, 0.1, ], // N/(m/s)^2
+        
+        maxRollRate: 200.0, // deg/s
+        rollTimeConstant: 0.1, // s
+        maxPitchRate: 200.0, // deg/s
+        pitchTimeConstant: 0.1, // s
+        maxYawRate: 150.0, // deg/s
+        yawTimeConstant: 0.1, // s
+        
+        propSound:{
+            maxThrustRPM: 12000,
+        },
+        
+        camera: {
+            firstPerson: {
+                rollPitchYaw: [ 0.0, 15.0, 0.0, ], // deg
+            },
+            thirdPerson: {
+                position: [ -1.0, 0.0, 0.3, ], // m
+                rollPitchYaw: [ 0.0, 15.0, 0.0, ], // deg
+            },
+            preselected: "thirdPerson",
+        },
+    },
+
+    map: {
+        mission: {
+            checkpointScale: 1.22,
+        },
+    },
+}

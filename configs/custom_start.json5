@@ -1,0 +1,20 @@
+{
+    extends: [ "configs/default.json5" ],
+
+    map: {
+        spawn: {
+            // 起点位置 [左右x, 上下y, 前后z] 单位：米
+            position: [ 0.0, 2.0, -5.0 ],
+
+            // 起点姿态 [横滚roll, 俯仰pitch, 偏航yaw] 单位：度
+            // roll:  绕前进方向旋转（像飞机侧倾）
+            // pitch: 抬头/低头
+            // yaw:   左右转向（水平旋转）
+            rollPitchYaw: [ 0.0, 0.0, 90.0 ],
+        },
+
+        mission: {
+            type: "freestyle",  // 自由飞行，无终点
+        },
+    },
+}

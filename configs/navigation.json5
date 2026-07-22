@@ -1,0 +1,39 @@
+{
+    extends: ["configs/default.json5"],
+
+    map: {
+        spawn: {
+            position: [0.0, 0.0, -2.0],
+            rollPitchYaw: [0.0, 0.0, 0.0],
+        },
+
+        mission: {
+            type: "navigation",
+            navigation: {
+                // 人物1旁 → 人物2旁
+                startPosition: [-0.6, 8.0, -22.0],
+                endPosition: [-0.6, 8.0, -24.5],
+                cruiseSpeed: 8.0,
+                headingGain: 2.0,
+            },
+        },
+    },
+
+    autoFlight: {
+        takeoffHoverAltitude: 3.0,
+    },
+
+    aircraft: {
+        stabilization: 0.0,
+        angleLimit: 180.0,
+
+        camera: {
+            thirdPerson: {
+                position: [ -2.5, 0.0, -2.0, ],
+                rollPitchYaw: [ 0.0, 30.0, 0.0, ],
+                fieldOfView: 75,
+            },
+            preselected: "thirdPerson",
+        },
+    },
+}
