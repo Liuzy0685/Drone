@@ -79,10 +79,6 @@ export function readInputs() {
         cmd = 'land'
         keyPressed['g'] = false
     }
-    if (keyPressed['n']) {
-        cmd = 'toggleNav'
-        keyPressed['n'] = false
-    }
 
     const gamepad = navigator.getGamepads()[0];
     const applyDeadzone = (v, dz = 0.15) => Math.abs(v) < dz ? 0 : v;

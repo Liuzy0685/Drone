@@ -31,8 +31,9 @@ export function createDroneBody(config, world) {
             )
     );
 
-    droneBody.setLinearDamping(0.0);
-    droneBody.setAngularDamping(0.0);
+    // moderate damping: stops glide quickly but allows responsive rotation
+    droneBody.setLinearDamping(config.aircraft.linearDamping ?? 2.0);
+    droneBody.setAngularDamping(config.aircraft.angularDamping ?? 0.5);
 
     const [w, h, d] = config.aircraft.boundingBox.size;
     let droneDesc = RAPIER.ColliderDesc
@@ -47,6 +48,8 @@ export function createDroneBody(config, world) {
 
 export function updateDroneBody(droneBody, config) {
     const [ixx, iyy, izz] = calcDrownInertia(config)
+    droneBody.setLinearDamping(config.aircraft.linearDamping ?? 2.0);
+    droneBody.setAngularDamping(config.aircraft.angularDamping ?? 0.5);
     droneBody.setAdditionalMassProperties(
         config.aircraft.mass,
         { x: 0.0, y: 0.0, z: 0.0 },

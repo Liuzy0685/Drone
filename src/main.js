@@ -74,6 +74,51 @@ async function main() {
         setCommand('land');
     });
 
+    // ── navigation panel ──
+    const navPanel = document.getElementById('navPanel');
+    const navStartBtn = document.getElementById('navStartBtn');
+    const navStopBtn = document.getElementById('navStopBtn');
+    const navStatus = document.getElementById('navStatus');
+
+    // N key toggles nav panel visibility, auto-fills start pos with current drone position
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'n' || e.key === 'N') {
+            if (!e.repeat) {
+                const showing = navPanel.style.display === 'block';
+                navPanel.style.display = showing ? 'none' : 'block';
+                if (!showing) {
+                    // auto-fill start position with current drone location
+                    document.getElementById('navStartX').value = latestDronePos.x.toFixed(1);
+                    document.getElementById('navStartY').value = latestDronePos.y.toFixed(1);
+                    document.getElementById('navStartZ').value = latestDronePos.z.toFixed(1);
+                }
+            }
+        }
+    });
+
+    navStartBtn.addEventListener('click', () => {
+        const sx = parseFloat(document.getElementById('navStartX').value);
+        const sy = parseFloat(document.getElementById('navStartY').value);
+        const sz = parseFloat(document.getElementById('navStartZ').value);
+        const ex = parseFloat(document.getElementById('navEndX').value);
+        const ey = parseFloat(document.getElementById('navEndY').value);
+        const ez = parseFloat(document.getElementById('navEndZ').value);
+        physicsWorker.postMessage({
+            navCommand: 'start',
+            startPos: [sx, sy, sz],
+            endPos: [ex, ey, ez],
+        });
+        navStatus.innerText = '状态: 导航中...';
+        navStatus.style.color = '#0f0';
+    });
+
+    navStopBtn.addEventListener('click', () => {
+        physicsWorker.postMessage({ navCommand: 'stop' });
+        navStatus.innerText = '状态: 已停止';
+        navStatus.style.color = '#888';
+        setCommand('toggleNav');  // also toggle off the old nav system
+    });
+
     // raw mouse delta for free camera — only when pointer is locked (click canvas)
     let rawMouseDX = 0, rawMouseDY = 0;
     window.addEventListener('mousemove', (e) => {
@@ -164,8 +209,34 @@ async function main() {
             document.getElementById('modeIndicator').style.display = 'block';
 
             scene.visible = true
+
+            // collision warning
+            document.getElementById('collisionWarning').style.display =
+                e.data.isColliding ? 'block' : 'none';
+
             latestDronePos.fromArray(e.data.drone.xyz);
             drone.updatePose(e.data.drone.xyz, e.data.drone.qxyzw)
+
+            // update telemetry in key panel
+            const tm = e.data.telemetry;
+            if (tm) {
+                const dp = latestDronePos;
+                document.getElementById('tX').innerText = dp.x.toFixed(1);
+                document.getElementById('tY').innerText = dp.y.toFixed(1);
+                document.getElementById('tZ').innerText = dp.z.toFixed(1);
+                document.getElementById('tSpeed').innerText = tm.speed;
+                document.getElementById('tAlt').innerText = tm.altitude;
+                document.getElementById('tRoll').innerText = tm.roll;
+                document.getElementById('tPitch').innerText = tm.pitch;
+                document.getElementById('tYaw').innerText = tm.yaw;
+                const d = tm.distances;
+                document.getElementById('dFront').innerText = d['前'];
+                document.getElementById('dBack').innerText = d['后'];
+                document.getElementById('dLeft').innerText = d['左'];
+                document.getElementById('dRight').innerText = d['右'];
+                document.getElementById('dUp').innerText = d['上'];
+                document.getElementById('dDown').innerText = d['下'];
+            }
             fpv.mount.position.fromArray(e.data.fpvCamera.xyz)
             fpv.mount.quaternion.fromArray(e.data.fpvCamera.qxyzw)
             tpv.mount.position.fromArray(e.data.tpvCamera.xyz)
@@ -185,6 +256,8 @@ async function main() {
             if (e.data.navReached && !finished) {
                 finished = true;
                 document.getElementById('timer').style.color = "lime";
+                document.getElementById('navStatus').innerText = '状态: ✅ 已到达';
+                document.getElementById('navStatus').style.color = '#0f0';
             }
             fixedDebugLines.visible = e.data.debug.isActive
             dynamicDebugLines.visible = e.data.debug.isActive
@@ -260,11 +333,6 @@ async function main() {
         const camNames = ['FPV', '第三视角', '自由视角'];
         document.getElementById('modeIndicator').innerText =
             (modeNames[inputs.mode] || 'Mode ?') + ' | ' + (camNames[camIndex] || '');
-
-        // update drone XYZ coords in key panel
-        const dp = latestDronePos;
-        document.getElementById('droneCoords').innerText =
-            `X: ${dp.x.toFixed(1)}  Y: ${dp.y.toFixed(1)}  Z: ${dp.z.toFixed(1)}`;
 
         updateSound(config, propSounds, inputs)
 

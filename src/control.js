@@ -56,19 +56,14 @@ export function controlDrone(inputs, controlData, droneBody, trace, config, dt) 
         droneBody.resetTorques(true);
         droneBody.setLinvel({ x: 0, y: 0, z: 0 });
         droneBody.setAngvel({ x: 0, y: 0, z: 0 });
-        if (trace.checkpoints.length >= 2) {
-            const [t, r] = trace.checkpoints[trace.checkpoints.length - 2]
-            droneBody.setTranslation(t);
-            droneBody.setRotation(r);
-            trace.checkpoints.pop()
-            trace.checkpoints.pop()
-        }
-        else {
-            droneBody.setTranslation(
-                { x: config.map.spawn.position[0], y: config.map.spawn.position[1], z: config.map.spawn.position[2] }
-            );
-            droneBody.setRotation(rpyDegToQuat(config.map.spawn.rollPitchYaw))
-        }
+        // keep current position, flip upright (level orientation, keep yaw)
+        const curRot = droneBody.rotation();
+        const curQ = new THREE.Quaternion(curRot.x, curRot.y, curRot.z, curRot.w);
+        const euler = new THREE.Euler().setFromQuaternion(curQ, 'ZYX');
+        euler.x = 0;  // zero roll
+        euler.y = 0;  // zero pitch
+        const levelQ = new THREE.Quaternion().setFromEuler(euler);
+        droneBody.setRotation({ x: levelQ.x, y: levelQ.y, z: levelQ.z, w: levelQ.w });
         return
     }
 
@@ -288,17 +283,15 @@ export function initNavState(config) {
 }
 
 /**
- * Simple straight-line navigation:
- *  1. Yaw toward target
- *  2. Fly forward (pitch + throttle proportional to distance)
- *  3. Obstacle ahead → climb (increase throttle, reduce pitch) to go OVER it
+ * Distance-based autonomous navigation:
+ *  Uses 6-direction obstacle distances to steer away from obstacles
+ *  while heading toward the target.
  */
 export function controlNavigation(navState, controlData, droneBody, config, dt, world) {
 
     const pos = droneBody.translation();
     const rot = droneBody.rotation();
     const q = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
-    const qInv = q.clone().invert();
 
     const target = navState.endPos;
     const toTarget = new THREE.Vector3(target.x - pos.x, target.y - pos.y, target.z - pos.z);
@@ -310,49 +303,53 @@ export function controlNavigation(navState, controlData, droneBody, config, dt, 
         return { throttleInput: 0.5, rollInput: 0, pitchInput: 0, yawInput: 0, reset: false };
     }
 
-    // ── target direction in world & drone-local frames ──
+    // ── compute 6-direction distances (body frame) ──
+    const camQ = new THREE.Quaternion(-0.5, -0.5, 0.5, 0.5);
+    const viewQ = q.clone().multiply(camQ);
+    const dirs = {
+        front:  new THREE.Vector3(0,0,-1).applyQuaternion(viewQ),
+        back:   new THREE.Vector3(0,0,1).applyQuaternion(viewQ),
+        left:   new THREE.Vector3(-1,0,0).applyQuaternion(viewQ),
+        right:  new THREE.Vector3(1,0,0).applyQuaternion(viewQ),
+        up:     new THREE.Vector3(0,-1,0).applyQuaternion(viewQ),
+        down:   new THREE.Vector3(0,1,0).applyQuaternion(viewQ),
+    };
+    const dist = {};
+    for (const [name, dir] of Object.entries(dirs)) {
+        const ray = new RAPIER.Ray({ x:pos.x, y:pos.y, z:pos.z }, { x:dir.x, y:dir.y, z:dir.z });
+        const hit = world.castRay(ray, 50, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, droneBody);
+        dist[name] = hit ? hit.timeOfImpact : 50;
+    }
+
+    // ── Yaw: toward target, but avoid obstacles ──
     const toTargetDir = toTarget.clone().normalize();
-
-    // Drone forward direction in world (drone -Z = forward)
-    const droneFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q).normalize();
-
-    // ── Yaw: signed angle between drone forward and target (horizontal only) ──
-    // Project both onto horizontal plane (XY, since gravity = +Z)
+    // use camera-view forward (already computed above for distances)
+    const droneFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(viewQ).normalize();
     const fwdH = new THREE.Vector3(droneFwd.x, droneFwd.y, 0);
     const tgtH = new THREE.Vector3(toTargetDir.x, toTargetDir.y, 0);
     let yawInput = 0;
     if (fwdH.length() > 0.001 && tgtH.length() > 0.001) {
         fwdH.normalize();
         tgtH.normalize();
-        const cross = fwdH.x * tgtH.y - fwdH.y * tgtH.x; // z-component of cross product
-        yawInput = clamp(cross * 3.0, -1, 1);  // P-controller with gain 3
+        const cross = fwdH.x * tgtH.y - fwdH.y * tgtH.x;
+        yawInput = clamp(cross * 2.0, -1, 1);  // target following
+    }
+    // steer away from close side obstacles
+    if (dist.left < 2.0) yawInput = clamp(yawInput + 0.5, -1, 1);
+    if (dist.right < 2.0) yawInput = clamp(yawInput - 0.5, -1, 1);
+
+    // ── Pitch: forward normally, tilt up if obstacle ahead ──
+    let pitchInput = clamp(distToTarget / 40.0, 0.1, 0.5);
+    if (dist.front < 4.0) {
+        pitchInput = -0.4;  // nose up to climb over
     }
 
-    // ── Obstacle detection: ray-cast forward ──
-    let obstacleClose = false;
-    const fwdRay = new RAPIER.Ray(
-        { x: pos.x, y: pos.y, z: pos.z },
-        { x: droneFwd.x, y: droneFwd.y, z: droneFwd.z },
-    );
-    const hit = world.castRay(fwdRay, 15.0, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, droneBody);
-    if (hit && hit.timeOfImpact < 6.0) {
-        obstacleClose = true;
-    }
+    // ── Throttle: maintain altitude, climb if obstacle close ──
+    let throttleInput = 0.5 + 0.2 * Math.min(distToTarget / 15.0, 1.0);
+    if (dist.front < 3.0 || dist.down < 1.0) throttleInput = 0.7;  // climb
+    if (dist.up < 1.0) throttleInput = 0.3;  // descend if ceiling close
 
-    // ── Assemble control inputs ──
-    let pitchInput, throttleInput;
-
-    if (obstacleClose) {
-        // Climb over: nose up (pitch back), extra throttle
-        pitchInput = -0.4;
-        throttleInput = 0.7;  // above hover
-    } else {
-        // Normal cruise: pitch forward proportional to distance, throttle above hover
-        pitchInput = clamp(distToTarget / 40.0, 0.1, 0.6);
-        const speedFrac = Math.min(distToTarget / 15.0, 1.0);
-        throttleInput = 0.5 + 0.25 * speedFrac;
-    }
-
+    // ── Roll: auto-level ──
     const rollInput = 0;
 
     return { throttleInput, rollInput, pitchInput, yawInput, reset: false };

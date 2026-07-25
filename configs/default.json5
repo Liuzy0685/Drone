@@ -65,7 +65,7 @@
                 shutterSpeed: 480,
                 poseTimeConstant: 0.03,
             },
-            preselected: "thirdPerson",
+            preselected: "firstPerson",
         },
     },
 

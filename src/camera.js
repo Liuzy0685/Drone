@@ -142,18 +142,16 @@ export function createFreeCamera() {
         camera.lookAt(lookTarget);
     }
 
-    /** call once when switching TO free‑cam so it starts near the drone */
+    /** call once when switching TO free‑cam — slightly behind the drone so it's visible */
     function snapTo(dronePos) {
-        // position behind/above drone (in project coords: -Z = up)
-        camera.position.set(dronePos.x - 5, dronePos.y - 3, dronePos.z - 8);
-        // look at drone, using project up direction (-Z)
+        // offset slightly so drone is in front of camera, not inside it
+        camera.position.set(dronePos.x - 1.5, dronePos.y - 0.5, dronePos.z - 0.5);
         camera.up.set(0, 0, -1);
         camera.lookAt(dronePos);
-        // extract yaw/pitch from the new orientation
         const dir = new THREE.Vector3();
         camera.getWorldDirection(dir);
-        pitch = Math.asin(clamp(dir.z, -1, 1));   // Z component = pitch (sin)
-        yaw = Math.atan2(dir.x, dir.y);            // XY plane angle
+        pitch = Math.asin(clamp(dir.z, -1, 1));
+        yaw = Math.atan2(dir.x, dir.y);
     }
 
     return { camera, update, resize, snapTo };

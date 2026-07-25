@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<<<<<<< HEAD
 <html lang="en">
 
 <head>
@@ -124,15 +123,23 @@
         <div>  <b>空格</b> 切换视角 (FPV→第三→自由)</div>
         <div>  <b>1~5</b> 切换控制模式</div>
 
-        <!-- real-time drone XYZ -->
-        <div id="droneCoords" style="
+        <!-- real-time telemetry -->
+        <div id="droneTelemetry" style="
             color:#0cf;
             margin-top:10px;
             padding-top:8px;
             border-top:1px solid rgba(255,255,255,0.15);
             font-size:11px;
             line-height:1.5;
-        ">X: --  Y: --  Z: --</div>
+        ">
+            <div style="color:#0f0;font-size:12px;margin-bottom:2px;">📡 实时数据</div>
+            <div>位置 X:<span id="tX">--</span> Y:<span id="tY">--</span> Z:<span id="tZ">--</span></div>
+            <div>速度 <span id="tSpeed">--</span> m/s | 高度 <span id="tAlt">--</span> m</div>
+            <div>姿态 R:<span id="tRoll">--</span>° P:<span id="tPitch">--</span>° Y:<span id="tYaw">--</span>°</div>
+            <div style="margin-top:2px; color:#f80;">距障碍物 (m)</div>
+            <div>前:<span id="dFront">--</span> 后:<span id="dBack">--</span> 左:<span id="dLeft">--</span></div>
+            <div>右:<span id="dRight">--</span> 上:<span id="dUp">--</span> 下:<span id="dDown">--</span></div>
+        </div>
     </div>
 
     <!-- Key panel toggle logic (inline, runs before modules) -->
@@ -181,6 +188,58 @@
             cursor:pointer;
         ">&#9660; 降落 (G)</button>
     </div>
+
+    <!-- Navigation settings panel -->
+    <div id="navPanel" style="
+        position:absolute;
+        top:70px;
+        right:310px;
+        z-index:100;
+        background:rgba(0,0,0,0.78);
+        border:1px solid rgba(255,255,255,0.2);
+        border-radius:8px;
+        padding:12px;
+        font-family:monospace;
+        font-size:12px;
+        color:#ccc;
+        display:none;
+        min-width:220px;
+    ">
+        <div style="color:#f80;font-size:13px;margin-bottom:8px;">🎯 自主导航设置</div>
+        <div style="color:#0f0;margin-bottom:4px;">起点 (m)</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px;">
+            X<input id="navStartX" type="number" value="0" step="0.5" style="width:50px;background:#222;color:#0cf;border:1px solid #555;border-radius:3px;font-family:monospace;">
+            Y<input id="navStartY" type="number" value="0" step="0.5" style="width:50px;background:#222;color:#0cf;border:1px solid #555;border-radius:3px;font-family:monospace;">
+            Z<input id="navStartZ" type="number" value="-2" step="0.5" style="width:50px;background:#222;color:#0cf;border:1px solid #555;border-radius:3px;font-family:monospace;">
+        </div>
+        <div style="color:#f44;margin-bottom:4px;">终点 (m)</div>
+        <div style="display:flex;gap:4px;margin-bottom:8px;">
+            X<input id="navEndX" type="number" value="20" step="0.5" style="width:50px;background:#222;color:#f66;border:1px solid #555;border-radius:3px;font-family:monospace;">
+            Y<input id="navEndY" type="number" value="0" step="0.5" style="width:50px;background:#222;color:#f66;border:1px solid #555;border-radius:3px;font-family:monospace;">
+            Z<input id="navEndZ" type="number" value="-20" step="0.5" style="width:50px;background:#222;color:#f66;border:1px solid #555;border-radius:3px;font-family:monospace;">
+        </div>
+        <div id="navStatus" style="color:#888;font-size:11px;margin-bottom:4px;">状态: 等待开始</div>
+        <div style="display:flex;gap:6px;">
+            <button id="navStartBtn" style="flex:1;padding:6px;font-size:12px;font-family:monospace;border-radius:5px;border:1px solid #0f0;background:rgba(0,255,0,0.15);color:#0f0;cursor:pointer;">▶ 开始导航</button>
+            <button id="navStopBtn" style="flex:1;padding:6px;font-size:12px;font-family:monospace;border-radius:5px;border:1px solid #f44;background:rgba(255,0,0,0.15);color:#f44;cursor:pointer;">■ 停止</button>
+        </div>
+    </div>
+
+    <!-- Collision warning -->
+    <div id="collisionWarning" style="
+        position:absolute;
+        top:10px;
+        left:50%;
+        transform:translateX(-50%);
+        color:#ff0000;
+        font-family:monospace;
+        font-size:28px;
+        font-weight:bold;
+        pointer-events:none;
+        text-shadow:0 0 12px rgba(255,0,0,0.9);
+        z-index:150;
+        display:none;
+    ">⚠ 碰撞警告</div>
 
     <!-- Flight status indicator -->
     <div id="flightStatus" style="
@@ -236,47 +295,3 @@
 </body>
 
 </html>
-=======
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>无人机自主避障仿真系统</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      #app { position: relative; width: 100%; height: 100%; }
-      canvas { display: block; }
-
-      #hud {
-        position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-        background: rgba(0,0,0,0.65); color: #fff;
-        padding: 8px 24px; border-radius: 8px;
-        font-size: 14px; pointer-events: none; z-index: 10;
-      }
-      #controls {
-        position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-        display: flex; gap: 12px; z-index: 10;
-      }
-      #controls button {
-        padding: 10px 24px; border: none; border-radius: 8px;
-        font-size: 14px; cursor: pointer; font-weight: 500;
-        transition: opacity 0.2s;
-      }
-      #controls button:hover { opacity: 0.85; }
-      #btn-start { background: #22c55e; color: #fff; }
-      #btn-reset { background: #64748b; color: #fff; }
-    </style>
-  </head>
-  <body>
-    <div id="app">
-      <div id="hud">准备就绪 — 点击「开始仿真」启动</div>
-      <div id="controls">
-        <button id="btn-start">开始仿真</button>
-        <button id="btn-reset">重置</button>
-      </div>
-    </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
-</html>
->>>>>>> baabb5dd94bc66b8f95b870a3e4084a2a64671c7

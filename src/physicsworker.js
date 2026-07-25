@@ -1,7 +1,7 @@
 import { RAPIER } from './rapier.js'
 import { createDroneBody, updateDroneBody } from './dronebody.js'
 import { dt } from './config.js'
-import { clamp } from './utils.js'
+import { clamp, deg } from './utils.js'
 import { initControls, controlDrone, initFlightState, controlAutoPhase, initNavState, controlNavigation } from './control.js'
 
 import { THREE } from './three.js'
@@ -88,8 +88,28 @@ async function main() {
             debug = e.data.debug
         }
         else if (Object.hasOwn(e.data, "config")) {
-            Object.assign(config, e.data.config) // config reference still works, all child references are not updated
+            Object.assign(config, e.data.config)
             triggerConfigUpdate()
+        }
+        else if (Object.hasOwn(e.data, "navCommand")) {
+            if (e.data.navCommand === 'start') {
+                game.type = 'navigation'
+                game.navState = {
+                    startPos: new THREE.Vector3(...e.data.startPos),
+                    endPos: new THREE.Vector3(...e.data.endPos),
+                    reached: false,
+                }
+                game.navigationActive = true
+                flightState.phase = 'cruising'
+                // teleport drone to start position (upright)
+                droneBody.setTranslation({ x: e.data.startPos[0], y: e.data.startPos[1], z: e.data.startPos[2] });
+                droneBody.setLinvel({ x: 0, y: 0, z: 0 });
+                droneBody.setAngvel({ x: 0, y: 0, z: 0 });
+                // reset rotation to level (identity quaternion = upright)
+                droneBody.setRotation({ x: 0, y: 0, z: 0, w: 1 });
+            } else if (e.data.navCommand === 'stop') {
+                game.navigationActive = false
+            }
         }
     })
 
@@ -98,7 +118,7 @@ async function main() {
     let game = { type: config.map.mission.type, finished: false }
     if (game.type === "navigation") {
         game.navState = initNavState(config)
-        game.navigationActive = true  // can be toggled by user
+        game.navigationActive = false  // default manual, press N to enable auto-nav
         // place drone at start position
         droneBody.setTranslation({
             x: game.navState.startPos.x,
@@ -181,6 +201,9 @@ async function main() {
     function stepPhysics() {
 
         world.step()
+
+        // ── collision detection ── (checked below after distances computed) ──
+
         let sensorHit = null
         world.intersectionPairsWith(droneBody.collider(0), (sensorCollider) => {
             const intersecting = world.intersectionPair(droneBody.collider(0), sensorCollider);
@@ -238,23 +261,69 @@ async function main() {
         if (inputs && inputs.forwardInput && inputs.forwardInput !== 0) {
             const dRot = droneBody.rotation();
             const dQ = new THREE.Quaternion(dRot.x, dRot.y, dRot.z, dRot.w);
-            // drone camera-forward = local -Z, rotate to world, project to horizontal (XY)
-            const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(dQ);
-            const fwdH = new THREE.Vector3(camFwd.x, camFwd.y, 0);
+            // camera quaternion that maps drone-local to view direction
+            const camQ = new THREE.Quaternion(-0.5, -0.5, 0.5, 0.5);
+            const viewQ = dQ.clone().multiply(camQ);
+            // forward in world space = viewQ rotates (0,0,-1)
+            const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(viewQ);
+            // project to horizontal plane (XY)
+            const fwdH = new THREE.Vector3(fwd.x, fwd.y, 0);
             if (fwdH.length() > 0.01) {
                 fwdH.normalize();
-                const FORCE = 8.0; // Newtons
+                const FORCE = 8.0;
                 droneBody.addForce(
                     new RAPIER.Vector3(fwdH.x * FORCE * inputs.forwardInput, fwdH.y * FORCE * inputs.forwardInput, 0),
-                    true,  // world-space force
+                    true,
                 );
             }
+
         }
 
         const pos = droneBody.translation();
         const rot = droneBody.rotation();
         const dronePosition = new THREE.Vector3(pos.x, pos.y, pos.z)
         const droneQuaternion = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w)
+
+        // ── telemetry ──
+        const linvel = droneBody.linvel();
+        const speed = Math.sqrt(linvel.x*linvel.x + linvel.y*linvel.y + linvel.z*linvel.z);
+
+        // altitude along gravity from spawn
+        const gv = config.map.gravity;
+        const gNorm = Math.sqrt(gv[0]*gv[0]+gv[1]*gv[1]+gv[2]*gv[2]);
+        const sp = config.map.spawn.position;
+        const altitude = ((pos.x-sp[0])*gv[0] + (pos.y-sp[1])*gv[1] + (pos.z-sp[2])*gv[2]) / gNorm;
+
+        // euler angles from quaternion
+        const euler = new THREE.Euler().setFromQuaternion(droneQuaternion, 'ZYX');
+        const rpyDeg = { roll: euler.x/deg, pitch: euler.y/deg, yaw: euler.z/deg };
+
+        // distances to obstacles in 6 body-frame directions (rotated by drone + camera quaternion)
+        const camQ = new THREE.Quaternion(-0.5, -0.5, 0.5, 0.5);
+        const viewQ = droneQuaternion.clone().multiply(camQ);
+        const bodyDirs = [
+            { name:'前', v: new THREE.Vector3(0,0,-1).applyQuaternion(viewQ) },
+            { name:'后', v: new THREE.Vector3(0,0,1).applyQuaternion(viewQ) },
+            { name:'左', v: new THREE.Vector3(-1,0,0).applyQuaternion(viewQ) },
+            { name:'右', v: new THREE.Vector3(1,0,0).applyQuaternion(viewQ) },
+            { name:'上', v: new THREE.Vector3(0,-1,0).applyQuaternion(viewQ) },
+            { name:'下', v: new THREE.Vector3(0,1,0).applyQuaternion(viewQ) },
+        ];
+        const distances = {};
+        for (const dir of bodyDirs) {
+            const ray = new RAPIER.Ray(
+                { x:pos.x, y:pos.y, z:pos.z },
+                { x:dir.v.x, y:dir.v.y, z:dir.v.z },
+            );
+            const hit = world.castRay(ray, 200, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, droneBody);
+            distances[dir.name] = hit ? hit.timeOfImpact.toFixed(1) : '∞';
+        }
+
+        // collision: any direction < 0.25m (drone half-size + margin) = touching obstacle
+        let isColliding = false;
+        for (const d of Object.values(distances)) {
+            if (d !== '∞' && parseFloat(d) < 0.25) { isColliding = true; break; }
+        }
 
         // update camera
         fpv.update(config.aircraft.camera.firstPerson, dronePosition, droneQuaternion)
@@ -280,6 +349,15 @@ async function main() {
             flightPhase: flightState.phase,
             navActive: game.type === 'navigation' ? game.navigationActive : false,
             navReached: game.type === 'navigation' ? game.navState.reached : false,
+            isColliding: isColliding,
+            telemetry: {
+                speed: speed.toFixed(1),
+                altitude: altitude.toFixed(1),
+                roll: rpyDeg.roll.toFixed(1),
+                pitch: rpyDeg.pitch.toFixed(1),
+                yaw: rpyDeg.yaw.toFixed(1),
+                distances,
+            },
             debug: { isActive: debug },
         }
         if (debug) {
