@@ -42,12 +42,14 @@ export function createCameraAnchor(camConfig, avoidCollision = false, world = nu
     return { camTarget, camAnchor, update }
 }
 
-export function createCamera(camConfig) {
+export function createCamera(camConfig, options = {}) {
     // for rendering
     const mount = new THREE.Object3D()
     const camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000);
     mount.add(camera)
-    camera.quaternion.set(-0.5, -0.5, 0.5, 0.5) // rotate to match drone coordinate system
+    if (options.alignToDroneFrame !== false) {
+        camera.quaternion.set(-0.5, -0.5, 0.5, 0.5) // rotate to match drone coordinate system
+    }
     camera.userData.fishEyeStrength = camConfig.fishEyeStrength
     camera.userData.exposure = 1 / camConfig.shutterSpeed
 

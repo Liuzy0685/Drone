@@ -2,20 +2,56 @@
     extends: ["configs/default.json5"],
 
     map: {
+        model: {
+            path: "assets/maps/sketchfabtown.glb",
+            position: [0.0, 0.0, 0.0],
+            rollPitchYaw: [-90.0, 0.0, 90.0],
+            scale: [2.0, 2.0, 2.0],
+        },
         spawn: {
-            position: [0.0, 0.0, -2.0],
+            position: [0.0, 0.0, -5.0],
             rollPitchYaw: [0.0, 0.0, 0.0],
         },
 
         mission: {
             type: "navigation",
             navigation: {
-                // 人物1旁 → 人物2旁
-                startPosition: [-0.6, 8.0, -22.0],
-                endPosition: [-0.6, 8.0, -24.5],
-                cruiseSpeed: 8.0,
+                startPosition: [0.0, 0.0, -5.0],
+                endPosition: [20.0, 0.0, -20.0],
+                cruiseSpeed: 4.0,
                 headingGain: 2.0,
             },
+        },
+    },
+
+    background: {
+        backgroundMap: {
+            path: "assets/envs/pretoria_gardens_1k.hdr",
+            rollPitchYaw: [-90.0, 0.0, 0.0],
+        },
+        environmentMap: {
+            path: "assets/envs/pretoria_gardens_1k.hdr",
+            rollPitchYaw: [-90.0, 0.0, 0.0],
+        },
+        music: {
+            path: "assets/music/fsm-team-escp-magenta-metropolis.mp3",
+            volume: 0.15,
+        },
+    },
+
+    navigation: {
+        testScene: {
+            enabled: false,
+            staticObstacles: [],
+            dynamicObstacles: [],
+        },
+        globalPlanner: {
+            resolution: 1.0,
+            inflationRadius: 1.8,
+            replanTimeThreshold: 1.0,
+        },
+        d3qn: {
+            requestHz: 12,
         },
     },
 
@@ -29,11 +65,11 @@
 
         camera: {
             thirdPerson: {
-                position: [ -2.5, 0.0, -2.0, ],
-                rollPitchYaw: [ 0.0, 30.0, 0.0, ],
+                position: [-2.5, 0.0, -2.0],
+                rollPitchYaw: [0.0, 30.0, 0.0],
                 fieldOfView: 75,
             },
-            preselected: "firstPerson",
+            preselected: "thirdPerson",
         },
     },
 }

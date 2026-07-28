@@ -35,7 +35,9 @@ async function main() {
     scene.add(origin);
     onGuiChange(gui, ["settings.debug"], (debug) => { origin.visible = debug }, true)
     const gVector = new THREE.Vector3(...config.map.gravity)
-    THREE.Object3D.DEFAULT_UP = gVector.clone().multiplyScalar(-1).normalize()
+    THREE.Object3D.DEFAULT_UP = gVector.lengthSq() > 1e-12
+        ? gVector.clone().multiplyScalar(-1).normalize()
+        : new THREE.Vector3(0, 0, -1)
     scene.visible = false
 
     // renderer
@@ -79,6 +81,38 @@ async function main() {
     const navStartBtn = document.getElementById('navStartBtn');
     const navStopBtn = document.getElementById('navStopBtn');
     const navStatus = document.getElementById('navStatus');
+    const navDefaults = config.map?.mission?.type === 'navigation'
+        ? config.map?.mission?.navigation ?? null
+        : null
+    const hasNavDefaults =
+        !!navDefaults &&
+        Array.isArray(navDefaults.startPosition) &&
+        navDefaults.startPosition.length >= 3 &&
+        Array.isArray(navDefaults.endPosition) &&
+        navDefaults.endPosition.length >= 3
+    const navDebug = document.createElement('div');
+    navDebug.id = 'navDebug';
+    navDebug.style.marginBottom = '8px';
+    navDebug.style.padding = '6px';
+    navDebug.style.minHeight = '72px';
+    navDebug.style.whiteSpace = 'pre-wrap';
+    navDebug.style.lineHeight = '1.35';
+    navDebug.style.fontSize = '10px';
+    navDebug.style.color = '#9fdcff';
+    navDebug.style.background = 'rgba(20,30,45,0.55)';
+    navDebug.style.border = '1px solid rgba(120,180,255,0.25)';
+    navDebug.style.borderRadius = '6px';
+    navDebug.innerText = 'debug: idle';
+    navStatus.insertAdjacentElement('afterend', navDebug);
+
+    if (hasNavDefaults) {
+        document.getElementById('navStartX').value = Number(navDefaults.startPosition[0]).toFixed(1);
+        document.getElementById('navStartY').value = Number(navDefaults.startPosition[1]).toFixed(1);
+        document.getElementById('navStartZ').value = Number(navDefaults.startPosition[2]).toFixed(1);
+        document.getElementById('navEndX').value = Number(navDefaults.endPosition[0]).toFixed(1);
+        document.getElementById('navEndY').value = Number(navDefaults.endPosition[1]).toFixed(1);
+        document.getElementById('navEndZ').value = Number(navDefaults.endPosition[2]).toFixed(1);
+    }
 
     // N key toggles nav panel visibility, auto-fills start pos with current drone position
     window.addEventListener('keydown', (e) => {
@@ -86,7 +120,7 @@ async function main() {
             if (!e.repeat) {
                 const showing = navPanel.style.display === 'block';
                 navPanel.style.display = showing ? 'none' : 'block';
-                if (!showing) {
+                if (!showing && !hasNavDefaults) {
                     // auto-fill start position with current drone location
                     document.getElementById('navStartX').value = latestDronePos.x.toFixed(1);
                     document.getElementById('navStartY').value = latestDronePos.y.toFixed(1);
@@ -110,13 +144,14 @@ async function main() {
         });
         navStatus.innerText = '状态: 导航中...';
         navStatus.style.color = '#0f0';
+        navDebug.innerText = 'debug: starting...';
     });
 
     navStopBtn.addEventListener('click', () => {
         physicsWorker.postMessage({ navCommand: 'stop' });
         navStatus.innerText = '状态: 已停止';
         navStatus.style.color = '#888';
-        setCommand('toggleNav');  // also toggle off the old nav system
+        navDebug.innerText = 'debug: stopped';
     });
 
     // raw mouse delta for free camera — only when pointer is locked (click canvas)
@@ -165,17 +200,28 @@ async function main() {
     const drone = createDroneVisuals(droneModel, scene, config, gui)
 
     // cameras
-    const fpv = createCamera(config.aircraft.camera.firstPerson)
+    const fpv = createCamera(config.aircraft.camera.firstPerson, { alignToDroneFrame: true })
     scene.add(fpv.mount)
-    const tpv = createCamera(config.aircraft.camera.thirdPerson)
+    const tpv = createCamera(config.aircraft.camera.thirdPerson, { alignToDroneFrame: true })
     scene.add(tpv.mount)
     const freeCam = createFreeCamera()
+    const droneFrameCameraQuat = new THREE.Quaternion(-0.5, -0.5, 0.5, 0.5)
+    const droneFrameCameraQuatInv = droneFrameCameraQuat.clone().invert()
+    const worldUp = new THREE.Vector3(0, 0, -1)
+    const tpvChaseState = {
+        initialized: false,
+        position: new THREE.Vector3(),
+        quaternion: new THREE.Quaternion(),
+        forward: new THREE.Vector3(0, 1, 0),
+        lastDronePos: new THREE.Vector3(),
+    }
 
     // 3-way camera toggle: FPV → TPV → Free → FPV …
     const allCams = [fpv.camera, tpv.camera, freeCam.camera];
     let camIndex = config.aircraft.camera.preselected === "firstPerson" ? 0 : 1;
     let selectedCamera = allCams[camIndex];
     let latestDronePos = new THREE.Vector3(); // for free-cam snap
+    let lastNavActive = false
 
     onGuiChange(gui, ["aircraft.camera.firstPerson.fieldOfView"], (fov) => { fpv.resize() })
     onGuiChange(gui, ["aircraft.camera.firstPerson.fishEyeStrength"], (s) => { fpv.camera.userData.fishEyeStrength = s })
@@ -186,6 +232,32 @@ async function main() {
 
     // sound
     const { propSounds, checkpointSound, music } = initSound(config, gui, tpv.camera, drone.node, propWav, checkpointWav, musicWav)
+
+    const testSceneMeshes = {
+        static: new Map(),
+        dynamic: new Map(),
+    }
+
+    function ensureTestObstacleMesh(id, kind, size) {
+        const bucket = kind === 'dynamic' ? testSceneMeshes.dynamic : testSceneMeshes.static
+        if (bucket.has(id)) {
+            return bucket.get(id)
+        }
+        const sx = Array.isArray(size) ? size[0] : size * 2
+        const sy = Array.isArray(size) ? size[1] : size * 2
+        const sz = Array.isArray(size) ? size[2] : size * 2
+        const geometry = new THREE.BoxGeometry(sx, sy, sz)
+        const material = new THREE.MeshStandardMaterial({
+            color: kind === 'dynamic' ? 0x2dd4bf : 0xef4444,
+            transparent: true,
+            opacity: 0.55,
+        })
+        const mesh = new THREE.Mesh(geometry, material)
+        mesh.name = `test-${kind}-${id}`
+        scene.add(mesh)
+        bucket.set(id, mesh)
+        return mesh
+    }
 
     // physics world
     let finished = false
@@ -208,14 +280,32 @@ async function main() {
             // mode indicator
             document.getElementById('modeIndicator').style.display = 'block';
 
+            if (e.data.navActive && !lastNavActive) {
+                camIndex = 1
+                selectedCamera = allCams[camIndex]
+            }
+            lastNavActive = !!e.data.navActive
+
             scene.visible = true
 
             // collision warning
             document.getElementById('collisionWarning').style.display =
                 e.data.isColliding ? 'block' : 'none';
 
-            latestDronePos.fromArray(e.data.drone.xyz);
+            const currentDronePos = new THREE.Vector3().fromArray(e.data.drone.xyz)
+            latestDronePos.copy(currentDronePos);
             drone.updatePose(e.data.drone.xyz, e.data.drone.qxyzw)
+
+            if (e.data.testScene) {
+                for (const obstacle of e.data.testScene.staticObstacles ?? []) {
+                    const mesh = ensureTestObstacleMesh(obstacle.id, 'static', obstacle.size)
+                    mesh.position.fromArray(obstacle.position)
+                }
+                for (const obstacle of e.data.testScene.dynamicObstacles ?? []) {
+                    const mesh = ensureTestObstacleMesh(obstacle.id, 'dynamic', obstacle.size)
+                    mesh.position.fromArray(obstacle.position)
+                }
+            }
 
             // update telemetry in key panel
             const tm = e.data.telemetry;
@@ -236,13 +326,106 @@ async function main() {
                 document.getElementById('dRight').innerText = d['右'];
                 document.getElementById('dUp').innerText = d['上'];
                 document.getElementById('dDown').innerText = d['下'];
+                const dResolved = tm.distances ?? {};
+                document.getElementById('dFront').innerText = dResolved.front ?? '-';
+                document.getElementById('dBack').innerText = dResolved.back ?? '-';
+                document.getElementById('dLeft').innerText = dResolved.left ?? '-';
+                document.getElementById('dRight').innerText = dResolved.right ?? '-';
+                document.getElementById('dUp').innerText = dResolved.up ?? '-';
+                document.getElementById('dDown').innerText = dResolved.down ?? '-';
+            }
+            const navDbg = e.data.navDebug ?? null;
+            if (navDbg) {
+                const velocity = navDbg.setpointVelocity ?? [0, 0, 0];
+                navDebug.innerText =
+                    `mode: ${navDbg.supervisorMode ?? '-'}\n` +
+                    `source: ${navDbg.setpointSource ?? '-'}  phase: ${navDbg.navPhase ?? '-'}\n` +
+                    `vSet: [${velocity.map(v => Number(v).toFixed(2)).join(', ')}]\n` +
+                    `goalDist: ${Number(navDbg.goalDistance ?? 0).toFixed(2)}  obsDist: ${Number(navDbg.obstacleDistance ?? 0).toFixed(2)}\n` +
+                    `stuckTime: ${Number(navDbg.stuckTime ?? 0).toFixed(2)}  escape: ${Number(navDbg.escapeRemaining ?? 0).toFixed(2)}\n` +
+                    `escapeCount: ${navDbg.escapeAttempts ?? 0}  replan: ${navDbg.forceReplan ? 'Y' : 'N'}\n` +
+                    `pathPts: ${navDbg.pathPoints ?? 0}  detour: ${navDbg.localDetourPoints ?? 0}/${navDbg.localDetourIndex ?? 0}\n` +
+                    `detourObs: ${navDbg.localDetourObstacleId ?? 'none'}`;
+            } else if (!e.data.navActive) {
+                navDebug.innerText = 'debug: idle';
             }
             fpv.mount.position.fromArray(e.data.fpvCamera.xyz)
             fpv.mount.quaternion.fromArray(e.data.fpvCamera.qxyzw)
-            tpv.mount.position.fromArray(e.data.tpvCamera.xyz)
-            tpv.mount.quaternion.fromArray(e.data.tpvCamera.qxyzw)
-            fpv.mount.updateMatrixWorld()
-            tpv.mount.updateMatrixWorld()
+
+            const dronePos = currentDronePos
+            const droneQ = new THREE.Quaternion().fromArray(e.data.drone.qxyzw)
+            const camQ = new THREE.Quaternion(-0.5, -0.5, 0.5, 0.5)
+            const viewQ = droneQ.clone().multiply(camQ)
+            const rawForward = new THREE.Vector3(0, 0, -1).applyQuaternion(viewQ)
+            const headingCandidate = new THREE.Vector3(rawForward.x, rawForward.y, 0)
+            if (headingCandidate.lengthSq() < 1e-6) {
+                headingCandidate.set(0, 1, 0)
+            } else {
+                headingCandidate.normalize()
+            }
+
+            const deltaDrone = dronePos.clone().sub(tpvChaseState.lastDronePos)
+            const horizontalMotion = Math.hypot(deltaDrone.x, deltaDrone.y)
+            const verticalMotion = Math.abs(deltaDrone.z)
+            const navVerticalOnlyStage =
+                e.data.navActive
+                && (e.data.navPhase === 'arrive' || e.data.navPhase === 'hold')
+                && (e.data.navHorizontalDistance ?? Infinity) < 1.5
+            const isMostlyVerticalConvergence =
+                navVerticalOnlyStage || (
+                    tpvChaseState.initialized
+                    && horizontalMotion < 0.03
+                    && verticalMotion > horizontalMotion
+                )
+
+            if (!tpvChaseState.initialized) {
+                tpvChaseState.forward.copy(headingCandidate)
+            } else if (!isMostlyVerticalConvergence) {
+                tpvChaseState.forward.lerp(headingCandidate, 0.18).normalize()
+            }
+            const forward = tpvChaseState.forward.clone()
+            const right = new THREE.Vector3().crossVectors(forward, worldUp).normalize()
+
+            const chaseConfig = config.aircraft.camera.thirdPerson
+            const backDistance = Math.abs(chaseConfig.position[0] ?? 2.5)
+            const sideOffset = chaseConfig.position[1] ?? 0
+            const upDistance = Math.abs(chaseConfig.position[2] ?? 2.0)
+            const lookAhead = 3.0
+            const chaseAlpha = chaseConfig.poseTimeConstant === 0
+                ? 1
+                : 1.0 - Math.exp(-dt / chaseConfig.poseTimeConstant)
+
+            const targetTpvPosition = dronePos.clone()
+                .addScaledVector(forward, -backDistance)
+                .addScaledVector(right, sideOffset)
+                .addScaledVector(worldUp, upDistance)
+            const tpvLookTarget = dronePos.clone().addScaledVector(forward, lookAhead)
+            const cameraForward = tpvLookTarget.clone().sub(targetTpvPosition).normalize()
+            const cameraRight = new THREE.Vector3().crossVectors(cameraForward, worldUp).normalize()
+            const cameraUp = new THREE.Vector3().crossVectors(cameraRight, cameraForward).normalize()
+            const cameraBack = cameraForward.clone().multiplyScalar(-1)
+            const cameraBasis = new THREE.Matrix4().makeBasis(cameraRight, cameraUp, cameraBack)
+            const cameraWorldQuat = new THREE.Quaternion().setFromRotationMatrix(cameraBasis)
+            const mountQuat = cameraWorldQuat.clone().multiply(droneFrameCameraQuatInv)
+
+            if (!tpvChaseState.initialized) {
+                tpvChaseState.position.copy(targetTpvPosition)
+                tpvChaseState.quaternion.copy(mountQuat)
+                tpvChaseState.initialized = true
+            } else {
+                tpvChaseState.position.lerp(targetTpvPosition, chaseAlpha)
+                tpvChaseState.quaternion.slerp(mountQuat, chaseAlpha)
+            }
+            tpvChaseState.lastDronePos.copy(dronePos)
+
+            tpv.mount.position.copy(tpvChaseState.position)
+            tpv.mount.quaternion.copy(tpvChaseState.quaternion)
+            tpv.mount.updateMatrixWorld(true)
+            tpv.camera.position.set(0, 0, 0)
+            tpv.camera.quaternion.copy(droneFrameCameraQuat)
+
+            fpv.mount.updateMatrixWorld(true)
+            tpv.mount.updateMatrixWorld(true)
             selectedCamera.updateProjectionMatrix()
             selectedCamera.updateMatrixWorld()
             stepMotionBlurCamera(selectedCamera)

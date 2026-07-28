@@ -1,0 +1,35 @@
+{
+    extends: ["configs/default.json5", "configs/sketchfab.json5"],
+
+    map: {
+        spawn: {
+            position: [0.0, 0.0, -5.0],
+            rollPitchYaw: [0.0, 0.0, 0.0],
+        },
+        mission: {
+            type: "navigation",
+            navigation: {
+                startPosition: [0.0, 0.0, -5.0],
+                endPosition: [20.0, 18.0, -5.0],
+                cruiseSpeed: 4.0,
+                headingGain: 2.0,
+            },
+        },
+    },
+
+    navigation: {
+        testScene: {
+            enabled: false,
+            staticObstacles: [],
+            dynamicObstacles: [],
+        },
+        globalPlanner: {
+            resolution: 1.0,
+            inflationRadius: 1.8,
+            replanTimeThreshold: 1.0,
+        },
+        d3qn: {
+            requestHz: 12,
+        },
+    },
+}

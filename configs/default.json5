@@ -3,64 +3,59 @@
 
     settings: {
         debug: false,
-        composerResolutionScale: 2.0, // virtual image before fisheye effect
-        rendererResolutionScale: 1.0, // final rendering
+        composerResolutionScale: 2.0,
+        rendererResolutionScale: 1.0,
         antiAlias: true,
     },
 
     aircraft: {
-        type: "quadcopter", // only quadcopter for now
+        type: "quadcopter",
         model: {
             path: "assets/drones/racing_drone_lite_graphics_version.glb",
-            position: [ 0.0, 0.0, 0.0, ], // m
-            rollPitchYaw: [ -90.0, 0.0, 90.0, ], // deg
+            position: [ 0.0, 0.0, 0.0, ],
+            rollPitchYaw: [ -90.0, 0.0, 90.0, ],
             scale: [ 0.03, 0.03, 0.03, ],
         },
-        wheelbase: 0.22, // m
-        mass: 0.4, // kg
-        propSize: 5.0, // inch
+        wheelbase: 0.22,
+        mass: 0.4,
+        propSize: 5.0,
         boundingBox: {
-            position: [ 0.0, 0.0, 0.0, ], // m
-            size: [ 0.3, 0.3, 0.08, ], // m
+            position: [ 0.0, 0.0, 0.0, ],
+            size: [ 0.3, 0.3, 0.08, ],
         },
-        maxCombinedThrust: 30.0, // N
-        dragForceOverSpeed: [ 0.0, 0.0, 0.0, ], // N/(m/s)
-        dragForceOverSpeedSquared: [ 0.005, 0.005, 0.05, ], // N/(m/s)^2
-        maxRollRate: 250.0, // deg/s
-        rollTimeConstant: 0.05, // s
-        maxPitchRate: 250.0, // deg/s
-        pitchTimeConstant: 0.05, // s
-        maxYawRate: 200.0, // deg/s
-        yawTimeConstant: 0.05, // s
-
-        // return turn rate proportional to tilt angle
-        stabilization: 0.0, // (deg/s)/deg, 0 for no stabilization
-
-        // commanded turn rate is reduced at 90% of angleLimit and cut off at 110%
-        angleLimit: 180.0, // deg, >=180 for no limit
-
+        maxCombinedThrust: 30.0,
+        dragForceOverSpeed: [ 0.0, 0.0, 0.0, ],
+        dragForceOverSpeedSquared: [ 0.005, 0.005, 0.05, ],
+        maxRollRate: 250.0,
+        rollTimeConstant: 0.05,
+        maxPitchRate: 250.0,
+        pitchTimeConstant: 0.05,
+        maxYawRate: 200.0,
+        yawTimeConstant: 0.05,
+        stabilization: 0.0,
+        angleLimit: 180.0,
         propSound: {
             path: "assets/sound/prop_loop.mp3",
-            recordingFrequency: 900, // Hz
+            recordingFrequency: 900,
             volume: 0.03,
             numBlades: 3,
             maxThrustRPM: 20000,
-            tiltDeltaRPM: 1500, // per motor when fast rolling/pitching/yawing
-            oscillateRPM: 300, // random oscillation amplitude
+            tiltDeltaRPM: 1500,
+            oscillateRPM: 300,
         },
         camera: {
             firstPerson: {
-                position: [ 0.2, 0.0, 0.0, ], // m
-                rollPitchYaw: [ 0.0, 40.0, 0.0, ], // deg
-                fieldOfView: 150, // deg diagonal
-                fishEyeStrength: 1.0, // 0 = perspective .. 1 = stereographic
-                shutterSpeed: 480, // 1/s (Infinity for no motion blur)
-                poseTimeConstant: 0.0001, // first order smoothing
+                position: [ 0.2, 0.0, 0.0, ],
+                rollPitchYaw: [ 0.0, 40.0, 0.0, ],
+                fieldOfView: 150,
+                fishEyeStrength: 1.0,
+                shutterSpeed: 480,
+                poseTimeConstant: 0.0001,
             },
             thirdPerson: {
-                position: [ -2.5, 0.0, -2.0, ], // m  (后方2.5m + 上方2m)
-                rollPitchYaw: [ 0.0, 30.0, 0.0, ], // deg (向下看无人机)
-                fieldOfView: 75, // deg diagonal
+                position: [ -2.5, 0.0, -2.0, ],
+                rollPitchYaw: [ 0.0, 30.0, 0.0, ],
+                fieldOfView: 75,
                 fishEyeStrength: 0.0,
                 shutterSpeed: 480,
                 poseTimeConstant: 0.03,
@@ -72,24 +67,19 @@
     map: {
         model: {
             path: "assets/maps/playground_2b.glb",
-            position: [ 0.0, 0.0, 0.0, ], // m
-            rollPitchYaw: [ -90.0, 0.0, 90.0, ], // deg
+            position: [ 0.0, 0.0, 0.0, ],
+            rollPitchYaw: [ -90.0, 0.0, 90.0, ],
             scale: [ 1.0, 1.0, 1.0, ],
         },
         spawn: {
-            position: [ -0.6, 8.0, -22.0, ], // m  (人物模型旁)
-            rollPitchYaw: [ 0.0, 0.0, 0.0, ], // deg
+            position: [ -0.6, 8.0, -22.0, ],
+            rollPitchYaw: [ 0.0, 0.0, 0.0, ],
         },
-        gravity: [ 0.0, 0.0, 0.0, ], // m/s^2  (零重力，松手悬停)
+        gravity: [ 0.0, 0.0, 9.81, ],
         timeScale: 1.0,
         mission: {
-            type: "freestyle", // no mission
-            // type: "race",
-            // mode: "sequence", // all checkpoints in specified order
-            // mode: "random", // all checkpoints in arbitrary order
-            // mode: {laps: 5}, // lap through all checkpoints in order 5 times, ends at start
-            // checkpoints: [ "checkpoint1", "checkpoint2", "checkpoint3", ],
-            exclude: [ ], // regexes for excluding objects from other missions
+            type: "freestyle",
+            exclude: [ ],
             checkpointScale: 1.0,
             checkpointSound: {
                 path: "assets/sound/406266__anthousai__hit-hollow-03.wav",
@@ -98,17 +88,247 @@
         },
     },
 
-    background: {
-        // https://github.com/mrdoob/three.js/issues/33003
-        backgroundMap: { // background image
-            path: "assets/envs/pretoria_gardens_1k.hdr",
-            intensity: 1.0,
-            rollPitchYaw: [ -90.0, 0.0, 0.0, ], // deg
+    navigation: {
+        sensing: {
+            maxRayDistance: 200.0,
+            pointCloudRange: 50.0,
+            collisionDistance: 0.25,
+            contactConfirmationDistance: 0.6,
+            uiCollisionWarningDistance: 0.6,
+            includeDiagonalRays: true,
+            diagonalRaySpreadDeg: 35.0,
+            verticalRaySpreadDeg: 24.0,
         },
-        environmentMap: { // lighting and reflections for objects
+        legacyController: {
+            reachedDistance: 2.0,
+            sideAvoidDistance: 2.0,
+            frontSlowdownDistance: 4.0,
+            frontClimbDistance: 3.0,
+            verticalClearanceDistance: 1.0,
+        },
+        apf: {
+            enabled: true,
+            priority: 100,
+            validityMs: 120,
+            maxSpeed: 6.0,
+            maxAcceleration: 8.0,
+            hoverDeadband: 0.35,
+            safeDistance: 16.0,
+            emergencyDistance: 8.0,
+            repulsiveGain: 18.0,
+            attractiveGain: 1.8,
+            pathAttractionGain: 2.1,
+            dampingGain: 1.2,
+            tangentialGain: 5.2,
+            relativeVelocityGain: 2.5,
+            verticalBiasGain: 0.8,
+            forwardBlockGain: 7.8,
+            dominantObstacleBoost: 1.8,
+            pathCorridorWidth: 5.0,
+            pointCloudPointRadius: 0.35,
+            yawRateGain: 1.4,
+            maxYawRate: 1.2,
+            localGoalLookahead: 4,
+            bypassMemorySeconds: 0.8,
+            bypassLockSeconds: 2.0,
+            bypassLockReleaseDistance: 11.0,
+            wallFollowDistance: 10.0,
+            wallFollowGain: 2.4,
+            localObstacleMaxSpan: 45.0,
+            localObstacleMaxHeight: 24.0,
+        },
+        dtpa: {
+            updateHz: 25,
+            lookaheadSeconds: 12,
+            safeDistance: 12,
+            emergencyDistance: 8,
+            typeWeights: {
+                uav: 1.0,
+                car: 0.85,
+                person: 0.7,
+                building: 0.4,
+                unknown: 0.6,
+            },
+            scoreWeights: {
+                tcpa: 0.45,
+                dcpa: 0.35,
+                range: 0.15,
+                confidence: 0.05,
+            },
+        },
+        supervisor: {
+            hysteresisEnterSeconds: 0.5,
+            hysteresisExitSeconds: 0.75,
+            dynamicThreatScoreThreshold: 0.6,
+            dynamicTtcThreshold: 5.0,
+            emergencyTtcThreshold: 1.5,
+            emergencyDistanceThreshold: 8.0,
+            staticWarningDistance: 8.0,
+            staticEmergencyDistance: 3.2,
+            staticBlockedAheadDistance: 14.0,
+            staticBlockedAheadConeDot: 0.25,
+            staticApfOnlyDistance: 0.45,
+            staticHardEmergencyDistance: 0.45,
+            recoveryClearSeconds: 0.5,
+            recoveryPathDeviationThreshold: 3.0,
+            rlResultTtlMs: 150,
+            hoverValidityMs: 120,
+            recoverySpeed: 4.0,
+            cruisePriority: 20,
+            recoveryPriority: 40,
+            detourLateralGain: 3.0,
+            detourForwardGain: 3.8,
+            detourObstacleInfluenceDistance: 12.0,
+            detourLateralClearance: 6.0,
+            detourForwardClearance: 7.0,
+            detourExtraClearance: 3.2,
+            detourWaypointReachDistance: 3.2,
+            detourLockSeconds: 1.4,
+            recoveryLookaheadDistance: 8.0,
+            recoveryMinForwardSpeed: 1.8,
+            recoveryVerticalGain: 0.45,
+            recoveryVerticalDeadband: 0.25,
+            recoveryVerticalLimit: 0.45,
+            localDetourMaxObstacleSpan: 45.0,
+            localDetourMaxObstacleHeight: 24.0,
+            proactiveFrontDistance: 9.0,
+            proactiveFrontHardDistance: 4.8,
+            proactiveSidePreferenceGain: 2.6,
+            proactiveForwardSuppression: 0.85,
+            proactiveClimbDistance: 4.0,
+            proactiveClimbSpeed: 0.42,
+            proactiveClimbSideThreshold: 2.0,
+        },
+        d3qn: {
+            requestHz: 15,
+            resultTtlMs: 150,
+            priority: 60,
+            maxSpeed: 5.5,
+            topThreatCount: 3,
+            yawRateGain: 1.2,
+            maxYawRate: 1.0,
+            validityMs: 150,
+            predictionHorizon: 2.4,
+            staticAvoidDistance: 9.0,
+            actionSet: [
+                [1.0, 0.0, 0.0],
+                [0.85, 0.35, 0.0],
+                [0.85, -0.35, 0.0],
+                [0.45, 0.85, 0.0],
+                [0.45, -0.85, 0.0],
+                [0.4, 0.0, -0.75],
+                [0.4, 0.0, 0.75],
+                [0.0, 0.0, 0.0],
+            ],
+        },
+        globalPlanner: {
+            enabled: true,
+            resolution: 1.5,
+            inflationRadius: 1.5,
+            maxSearchNodes: 16000,
+            replanDistanceThreshold: 2.0,
+            replanTimeThreshold: 0.5,
+            mapPadding: 8.0,
+            weightedHeuristic: 1.15,
+            verticalMoveCost: 1.4,
+            verticalHeuristicWeight: 1.35,
+            turnPenalty: 0.2,
+            wallPenaltyRadius: 2,
+            wallPenaltyWeight: 0.3,
+            goalLayerCount: 2,
+            maxGoalVerticalOffset: 4.0,
+            lineOfSightSamples: 20,
+            lineOfSightInflation: 0.8,
+            freeCellSearchRadius: 3,
+            adaptiveLongStepCells: 2,
+            sectorBiasWeight: 0.4,
+        },
+        autopilot: {
+            hoverAltitude: 3.0,
+            takeoffClimbSpeed: 1.3,
+            maxCruiseSpeed: 4.0,
+            maxApproachSpeed: 1.2,
+            maxVerticalSpeed: 1.0,
+            cruiseArrivalRadius: 1.6,
+            finalArrivalRadius: 0.8,
+            brakingDistance: 6.0,
+            pathLookaheadWaypoints: 2,
+            pathLookaheadDistance: 6.0,
+            cruiseSetpointWeight: 0.9,
+            d3qnOverrideWeight: 0.88,
+            recoveryOverrideWeight: 0.92,
+            apfOverrideWeight: 0.96,
+            avoidanceTriggerDistance: 14.0,
+            avoidanceHardDistance: 4.5,
+            avoidanceContactEscapeSpeed: 1.8,
+            velocityBlend: 0.2,
+            holdVelocityBlend: 0.35,
+            holdSnapSpeed: 0.2,
+            verticalDescentLockRadius: 1.2,
+            arriveObstacleClearance: 4.5,
+            arriveVerticalWindow: 1.8,
+            verticalCruiseGain: 0.55,
+            airborneSkipTakeoffDistance: 2.5,
+            verticalEscapeTriggerDistance: 0.7,
+            verticalEscapeClearance: 0.8,
+            verticalEscapeSpeed: 1.0,
+            verticalEscapeMaxRise: 2.5,
+            verticalEscapeMaxObstacleWidth: 6.0,
+            verticalEscapeMaxObstacleHeight: 8.0,
+            rayEscapeTriggerDistance: 0.45,
+            rayEscapeSpeed: 2.2,
+            rayEscapeWeight: 0.96,
+            avoidanceGoalMinForwardSpeed: 0.55,
+            emergencyOverrideDistance: 0.85,
+            emergencyOverrideContactSeconds: 0.55,
+            emergencyOverrideClearSeconds: 0.25,
+            emergencyOverrideSpeed: 2.8,
+            emergencyOverrideMinForwardSpeed: 0.75,
+            altitudeTrackGoalRadius: 3.0,
+            altitudeOnlyArriveRadius: 1.0,
+            altitudeOnlyArriveClearance: 0.9,
+            altitudeOnlyVerticalGain: 0.9,
+            takeoffProtectedUpClearance: 1.5,
+            takeoffAvoidanceHardDistance: 0.28,
+            stuckProgressEpsilon: 0.03,
+            stuckSpeedThreshold: 0.45,
+            stuckDetectionSeconds: 1.6,
+            stuckObstacleDistance: 7.5,
+            stuckGoalDistance: 4.0,
+            stuckEscapeDuration: 1.2,
+            stuckEscapeSpeed: 2.6,
+            stuckForwardBias: 1.15,
+            stuckLateralBias: 1.35,
+            fallbackPathObstacleDistance: 14.0,
+            fallbackPathLateralMargin: 8.0,
+            fallbackPathForwardDistance: 7.0,
+            cruiseAltitudeTolerance: 0.4,
+            cruiseAltitudeRecoverySpeed: 0.7,
+            groundProtectionZ: -2.8,
+            groundDownwardDeadband: 0.05,
+            maxHorizontalSpeed: 3.0,
+            horizontalGain: 1.8,
+            maxHorizontalAccel: 2.5,
+            verticalGain: 0.8,
+            maxVerticalAccel: 1.0,
+            alignRollPitchThresholdDeg: 6.0,
+            alignYawRateLimit: 0.18,
+            alignYawThresholdDeg: 12.0,
+            alignStableSeconds: 0.4,
+            alignSpeedThreshold: 0.35,
+        },
+    },
+
+    background: {
+        backgroundMap: {
             path: "assets/envs/pretoria_gardens_1k.hdr",
             intensity: 1.0,
-            rollPitchYaw: [ -90.0, 0.0, 0.0, ], // deg
+            rollPitchYaw: [ -90.0, 0.0, 0.0, ],
+        },
+        environmentMap: {
+            path: "assets/envs/pretoria_gardens_1k.hdr",
+            intensity: 1.0,
+            rollPitchYaw: [ -90.0, 0.0, 0.0, ],
         },
         music: {
             path: "assets/music/fsm-team-escp-magenta-metropolis.mp3",

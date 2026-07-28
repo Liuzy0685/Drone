@@ -1,0 +1,43 @@
+{
+    extends: ["configs/default.json5", "configs/issum.json5"],
+
+    map: {
+        spawn: {
+            position: [32.1, 130.0, -15.0],
+            rollPitchYaw: [0.0, 0.0, -35.0],
+        },
+
+        mission: {
+            type: "navigation",
+            navigation: {
+                startPosition: [32.1, 130.0, -15.0],
+                endPosition: [14.9, 98.1, -17.5],
+                cruiseSpeed: 3.0,
+                headingGain: 2.0,
+            },
+            exclude: ["balloon.*", "checkpoint.*"],
+        },
+    },
+
+    navigation: {
+        testScene: {
+            enabled: false,
+            staticObstacles: [],
+            dynamicObstacles: [],
+        },
+        globalPlanner: {
+            resolution: 1.0,
+            inflationRadius: 2.2,
+            buildingDownwardSealDepth: 8.0,
+            replanTimeThreshold: 1.0,
+        },
+        autopilot: {
+            hoverAltitude: 6.0,
+            maxVerticalSpeed: 1.2,
+            altitudeTrackGoalRadius: 5.5,
+        },
+        d3qn: {
+            requestHz: 12,
+        },
+    },
+}

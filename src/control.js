@@ -1,4 +1,3 @@
-
 import { THREE } from './three.js'
 import { RAPIER } from './rapier.js'
 import { inch, deg, clamp, lerp, rpyDegToQuat } from './utils.js'
@@ -6,13 +5,23 @@ import { calcDrownInertia } from './dronebody.js'
 // import { readInputs } from './inputs.js'
 // import { updateSound } from './sound.js'
 
+function gravityMagnitude(config) {
+    const g = config.map.gravity
+    return Math.sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2])
+}
+
+function gravityDirection(config) {
+    const mag = gravityMagnitude(config)
+    if (mag < 1e-6) {
+        return new THREE.Vector3(0, 0, 1)
+    }
+    const g = config.map.gravity
+    return new THREE.Vector3(g[0] / mag, g[1] / mag, g[2] / mag)
+}
+
 export function initControls(config) {
 
-    const g = Math.sqrt(
-        Math.pow(config.map.gravity[0], 2)
-        + Math.pow(config.map.gravity[1], 2)
-        + Math.pow(config.map.gravity[2], 2)
-    )
+    const g = gravityMagnitude(config)
 
     const droneInertia = calcDrownInertia(config)
 
@@ -92,7 +101,7 @@ export function controlDrone(inputs, controlData, droneBody, trace, config, dt) 
     );
 
     if (config.aircraft.angleLimit < 180 || config.aircraft.stabilization > 0) {
-        const gInDroneFrame = new THREE.Vector3(...config.map.gravity).normalize().applyQuaternion(qInv)
+        const gInDroneFrame = gravityDirection(config).applyQuaternion(qInv)
         const polarAngle = Math.acos(clamp(gInDroneFrame.z, -1, 1))
 
         let restoreAxis = new THREE.Vector3(gInDroneFrame.y, -gInDroneFrame.x, 0).normalize()
@@ -118,8 +127,6 @@ export function controlDrone(inputs, controlData, droneBody, trace, config, dt) 
 
         localTargetAngularVelocity.addScaledVector(restoreAxis, -restoreAmount)
     }
-
-
 
     const localForce = new RAPIER.Vector3(0, 0, -throttle * config.aircraft.maxCombinedThrust);
     const localTorque = new RAPIER.Vector3(
@@ -153,7 +160,7 @@ export function controlDrone(inputs, controlData, droneBody, trace, config, dt) 
 
 }
 
-// ── Flight State Machine ──────────────────────────────────────────────
+// Flight State Machine
 
 export function initFlightState(config) {
     const hoverAlt = (config.autoFlight && config.autoFlight.takeoffHoverAltitude) || 3.0;
@@ -177,7 +184,7 @@ export function controlAutoPhase(flightState, controlData, droneBody, config, dt
     }
 
     if (flightState.phase === 'ground') {
-        // auto-detect manual lift-off or takeoff command → transition to cruising
+        // auto-detect manual lift-off or takeoff command -> transition to cruising
         const alt = altitudeAboveSpawn(droneBody, flightState, config);
         if (alt > 0.5) {
             flightState.phase = 'cruising';
@@ -186,8 +193,6 @@ export function controlAutoPhase(flightState, controlData, droneBody, config, dt
     }
 
     const pos = droneBody.translation();
-    const grav = config.map.gravity;
-    const gNorm = Math.sqrt(grav[0] * grav[0] + grav[1] * grav[1] + grav[2] * grav[2]);
 
     if (flightState.phase === 'takingOff') {
         flightState.takeoffTimer += dt;
@@ -202,7 +207,7 @@ export function controlAutoPhase(flightState, controlData, droneBody, config, dt
             return null;
         }
 
-        // auto-level, climb with 1.3× hover throttle
+        // auto-level, climb with 1.3x hover throttle
         const climbThrottle = Math.min(controlData.hoverThrottle * 1.3 * ramp, 1.0);
         return {
             throttleInput: throttleToInput(climbThrottle, controlData.hoverThrottle),
@@ -212,14 +217,10 @@ export function controlAutoPhase(flightState, controlData, droneBody, config, dt
 
     if (flightState.phase === 'landing') {
         // cast ray downward (gravity direction) to find ground
-        const rayDir = {
-            x: grav[0] / gNorm,
-            y: grav[1] / gNorm,
-            z: grav[2] / gNorm,
-        };
+        const down = gravityDirection(config);
         const ray = new RAPIER.Ray(
             { x: pos.x, y: pos.y, z: pos.z },
-            rayDir,
+            { x: down.x, y: down.y, z: down.z },
         );
         const hit = world.castRay(ray, 20.0, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, droneBody);
 
@@ -253,7 +254,10 @@ export function controlAutoPhase(flightState, controlData, droneBody, config, dt
 function altitudeAboveSpawn(droneBody, flightState, config) {
     const pos = droneBody.translation();
     const g = config.map.gravity;
-    const gNorm = Math.sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
+    const gNorm = gravityMagnitude(config);
+    if (gNorm < 1e-6) {
+        return Math.abs(pos.z - flightState.spawnPos[2]);
+    }
     return Math.abs(
         (pos.x - flightState.spawnPos[0]) * g[0] / gNorm +
         (pos.y - flightState.spawnPos[1]) * g[1] / gNorm +
@@ -271,7 +275,7 @@ function throttleToInput(desiredThrottle, hoverThrottle) {
     }
 }
 
-// ── Navigation Controller ─────────────────────────────────────────────
+// Navigation Controller
 
 export function initNavState(config) {
     const nav = config.map.mission.navigation;
@@ -284,10 +288,18 @@ export function initNavState(config) {
 
 /**
  * Distance-based autonomous navigation:
- *  Uses 6-direction obstacle distances to steer away from obstacles
- *  while heading toward the target.
+ * Uses a shared environment snapshot to steer away from obstacles while heading toward the target.
+ *
+ * @param {any} navState
+ * @param {any} controlData
+ * @param {any} droneBody
+ * @param {any} config
+ * @param {number} dt
+ * @param {{
+ *   rayDistances?: Record<string, number>
+ * } | null} observation
  */
-export function controlNavigation(navState, controlData, droneBody, config, dt, world) {
+export function controlNavigation(navState, controlData, droneBody, config, dt, observation) {
 
     const pos = droneBody.translation();
     const rot = droneBody.rotation();
@@ -296,34 +308,30 @@ export function controlNavigation(navState, controlData, droneBody, config, dt, 
     const target = navState.endPos;
     const toTarget = new THREE.Vector3(target.x - pos.x, target.y - pos.y, target.z - pos.z);
     const distToTarget = toTarget.length();
+    const controllerConfig = config.navigation?.legacyController ?? {}
+    const reachedDistance = controllerConfig.reachedDistance ?? 2.0
+    const sideAvoidDistance = controllerConfig.sideAvoidDistance ?? 2.0
+    const frontSlowdownDistance = controllerConfig.frontSlowdownDistance ?? 4.0
+    const frontClimbDistance = controllerConfig.frontClimbDistance ?? 3.0
+    const verticalClearanceDistance = controllerConfig.verticalClearanceDistance ?? 1.0
 
-    // ── reached target? ──
-    if (distToTarget < 2.0) {
+    if (distToTarget < reachedDistance) {
         navState.reached = true;
         return { throttleInput: 0.5, rollInput: 0, pitchInput: 0, yawInput: 0, reset: false };
     }
 
-    // ── compute 6-direction distances (body frame) ──
     const camQ = new THREE.Quaternion(-0.5, -0.5, 0.5, 0.5);
     const viewQ = q.clone().multiply(camQ);
-    const dirs = {
-        front:  new THREE.Vector3(0,0,-1).applyQuaternion(viewQ),
-        back:   new THREE.Vector3(0,0,1).applyQuaternion(viewQ),
-        left:   new THREE.Vector3(-1,0,0).applyQuaternion(viewQ),
-        right:  new THREE.Vector3(1,0,0).applyQuaternion(viewQ),
-        up:     new THREE.Vector3(0,-1,0).applyQuaternion(viewQ),
-        down:   new THREE.Vector3(0,1,0).applyQuaternion(viewQ),
-    };
-    const dist = {};
-    for (const [name, dir] of Object.entries(dirs)) {
-        const ray = new RAPIER.Ray({ x:pos.x, y:pos.y, z:pos.z }, { x:dir.x, y:dir.y, z:dir.z });
-        const hit = world.castRay(ray, 50, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, null, null, droneBody);
-        dist[name] = hit ? hit.timeOfImpact : 50;
+    const dist = observation?.rayDistances ?? {
+        front: Infinity,
+        back: Infinity,
+        left: Infinity,
+        right: Infinity,
+        up: Infinity,
+        down: Infinity,
     }
 
-    // ── Yaw: toward target, but avoid obstacles ──
     const toTargetDir = toTarget.clone().normalize();
-    // use camera-view forward (already computed above for distances)
     const droneFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(viewQ).normalize();
     const fwdH = new THREE.Vector3(droneFwd.x, droneFwd.y, 0);
     const tgtH = new THREE.Vector3(toTargetDir.x, toTargetDir.y, 0);
@@ -332,24 +340,20 @@ export function controlNavigation(navState, controlData, droneBody, config, dt, 
         fwdH.normalize();
         tgtH.normalize();
         const cross = fwdH.x * tgtH.y - fwdH.y * tgtH.x;
-        yawInput = clamp(cross * 2.0, -1, 1);  // target following
+        yawInput = clamp(cross * 2.0, -1, 1);
     }
-    // steer away from close side obstacles
-    if (dist.left < 2.0) yawInput = clamp(yawInput + 0.5, -1, 1);
-    if (dist.right < 2.0) yawInput = clamp(yawInput - 0.5, -1, 1);
+    if (dist.left < sideAvoidDistance) yawInput = clamp(yawInput + 0.5, -1, 1);
+    if (dist.right < sideAvoidDistance) yawInput = clamp(yawInput - 0.5, -1, 1);
 
-    // ── Pitch: forward normally, tilt up if obstacle ahead ──
     let pitchInput = clamp(distToTarget / 40.0, 0.1, 0.5);
-    if (dist.front < 4.0) {
-        pitchInput = -0.4;  // nose up to climb over
+    if (dist.front < frontSlowdownDistance) {
+        pitchInput = -0.4;
     }
 
-    // ── Throttle: maintain altitude, climb if obstacle close ──
     let throttleInput = 0.5 + 0.2 * Math.min(distToTarget / 15.0, 1.0);
-    if (dist.front < 3.0 || dist.down < 1.0) throttleInput = 0.7;  // climb
-    if (dist.up < 1.0) throttleInput = 0.3;  // descend if ceiling close
+    if (dist.front < frontClimbDistance || dist.down < verticalClearanceDistance) throttleInput = 0.7;
+    if (dist.up < verticalClearanceDistance) throttleInput = 0.3;
 
-    // ── Roll: auto-level ──
     const rollInput = 0;
 
     return { throttleInput, rollInput, pitchInput, yawInput, reset: false };
